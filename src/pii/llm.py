@@ -1,6 +1,6 @@
 """One chat function per role (TEACHER, STUDENT, FRONTIER), configured only through env vars:
 
-  {ROLE}_PROVIDER  openai (default: any OpenAI-compatible API — OpenAI, vLLM on Runpod, distil endpoint, Ollama)
+  {ROLE}_PROVIDER  openai (default: any OpenAI-compatible API — OpenAI, distil endpoint, vLLM, Ollama)
                    | anthropic
   {ROLE}_MODEL     model name (required)
   {ROLE}_BASE_URL  OpenAI-compatible endpoint; empty = api.openai.com

@@ -14,20 +14,25 @@ FRONTIER_PROMPT = ("Antworte auf Deutsch, kurz. Platzhalter wie [GIVEN_NAME_1] s
                    "übernimm sie unverändert in deine Antwort, wo du sie erwähnst.")
 
 
+def run(text, teacher=False):
+    role = "teacher" if teacher else "student"
+    res = extract(role, text, *make_chat(role.upper()), split="demo")
+    masked, mapping = mask(text, res["entities"])
+    reply, _, _ = make_chat("FRONTIER")[1]([{"role": "system", "content": FRONTIER_PROMPT},
+                                            {"role": "user", "content": masked}])
+    get_client().flush()
+    return masked, reply, rehydrate(reply, mapping), mapping
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("text", help="German text containing PII")
     ap.add_argument("--teacher", action="store_true", help="redact with the teacher instead of the student")
     a = ap.parse_args()
-    role = "teacher" if a.teacher else "student"
-    res = extract(role, a.text, *make_chat(role.upper()), split="demo")
-    masked, mapping = mask(a.text, res["entities"])
-    reply, _, _ = make_chat("FRONTIER")[1]([{"role": "system", "content": FRONTIER_PROMPT},
-                                            {"role": "user", "content": masked}])
-    get_client().flush()
+    masked, reply, final, _ = run(a.text, a.teacher)
     print("1. REDACTED (all the frontier LLM sees):\n  ", masked)
     print("2. FRONTIER REPLY:\n  ", reply)
-    print("3. REHYDRATED:\n  ", rehydrate(reply, mapping))
+    print("3. REHYDRATED:\n  ", final)
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ SYSTEM ?= teacher
 ROLE   ?= student
 export ENV_FILE
 
-.PHONY: help setup check data teacher student eval review review-import distil-prep demo test
+.PHONY: help setup check data teacher student eval review review-import distil-prep demo app test
 
 help:          ## list targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*##/\t/'
@@ -27,7 +27,7 @@ data:          ## download German rows + synthetic broker messages -> data/{test
 teacher:       ## teacher over N rows of SPLIT, traced -> results/preds_teacher_SPLIT.jsonl
 	$(UV) run python -m pii.extract teacher --n $(N) --split $(SPLIT) $(if $(YES),--yes)
 
-student:       ## student (Runpod/vLLM) over N rows of SPLIT, traced
+student:       ## student (distil endpoint) over N rows of SPLIT, traced
 	$(UV) run python -m pii.extract student --n $(N) --split $(SPLIT) $(if $(YES),--yes)
 
 eval:          ## score SYSTEM on SPLIT -> results/eval_*.md + Langfuse scores
@@ -44,6 +44,9 @@ distil-prep:   ## write distil/ (config, job description, train, test); submits 
 
 demo:          ## gateway demo: make demo TEXT="..." [ROLE=teacher]
 	$(UV) run python -m pii.gateway "$(TEXT)" $(if $(filter teacher,$(ROLE)),--teacher)
+
+app:           ## PII redactor chat UI on http://localhost:8000
+	$(UV) run python -m pii.app
 
 test:          ## unit tests
 	$(UV) run pytest -q

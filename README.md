@@ -3,10 +3,10 @@
 **Pitch.** Broker/bank support gets emails and call notes full of PII (names, IBANs, tax IDs, depot numbers…).
 A small self-hosted model finds the PII, code swaps it for placeholders (`[IBAN_1]`), only the masked text reaches the
 frontier LLM / downstream ticket classifier, and the reply is rehydrated. We measure leaks, train the small model with
-distil labs, serve it on Runpod, and improve it from Langfuse traces.
+distil labs, serve it from a distil labs endpoint, and improve it from Langfuse traces.
 
 ```
-data ──> teacher (big LLM) ──> eval: leak rate ──> distil labs: train student ──> Runpod: serve ──> student eval ──> demo
+data ──> teacher (big LLM) ──> eval: leak rate ──> distil labs: train student ──> distil endpoint ──> student eval ──> demo
               │ every call traced in Langfuse; leak-free teacher traces become new training rows ──────────┘ (loop)
 ```
 
@@ -27,7 +27,7 @@ Everything lives in **`.env`** (template: `.env.example`). Paste what the organi
 | Langfuse | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | organisers |
 | distil labs | run `distil auth` (interactive login) | organisers |
 | Teacher LLM | `TEACHER_MODEL`, `TEACHER_BASE_URL`, `TEACHER_API_KEY` | any OpenAI-compatible API (`TEACHER_PROVIDER=anthropic` for Claude) |
-| Student | `STUDENT_BASE_URL`, `STUDENT_API_KEY` | your Runpod pod (step 5) |
+| Student | `STUDENT_BASE_URL`, `STUDENT_API_KEY` | distil inference endpoint (step 5) |
 | Demo LLM | `FRONTIER_*` | same as teacher is fine |
 
 Each role (`TEACHER`, `STUDENT`, `FRONTIER`) takes `_PROVIDER`, `_MODEL`, `_BASE_URL`, `_API_KEY` and optional
@@ -59,28 +59,48 @@ Models: `DISTIL_TEACHER` / `DISTIL_STUDENT` in `.env` (must be in distil's catal
 `src/pii/schema.py`. distil's own endpoint traces (`observation_format: langfuse`): `distil inference-endpoint
 download-traces --all <name>` then `make distil-prep ARGS="--traces <name>-traces.jsonl"`.
 
-## 5. Serve on Runpod (vLLM) and evaluate the student
+## 5. Serve with distil labs and evaluate the student
 
-Pod: 24 GB GPU (RTX 4090 / L4 / A5000), vLLM or PyTorch template, expose HTTP **8000**, disk ≥ 30 GB.
-Upload `model/model-adapter` (`runpodctl send model/model-adapter`), then on the pod:
+Needs a finished `<slm-id>` trained with `tuning.lora_r` in 8/16/32/64/128/256/320/512. A deployment stops after 6 h
+(or 1 h idle), cannot be restarted, and costs a deployment credit (`distil credits-balance`).
 
 ```bash
-pip install -U vllm
-vllm serve Qwen/Qwen3-1.7B --served-model-name base \
-  --enable-lora --lora-modules model=./model-adapter --max-lora-rank 64 --api-key "$VLLM_API_KEY" \
-  --enable-auto-tool-choice --tool-call-parser hermes --reasoning-parser qwen3
+distil deployment create-from-slm <slm-id>                     # prints <deployment-id>
+distil deployment status <deployment-id>                       # wait for Success
+distil inference-endpoint create-from-deployment --name pii-student \
+  --fallback-model "openai/gpt-4.1-mini" <deployment-id>       # prints the unique Endpoint Name
+distil api-keys create pii-key                                 # secret saved to pii-key.json
+distil inference-endpoint link-api-key <endpoint-name> pii-key # key works after ~1 min
+distil slm download-metadata --destination model <slm-id>      # model/model_client.py
 ```
-Base model and `--max-lora-rank` come from `model/config.yaml` (`student_model_name`, `lora_r`). Then set
-`STUDENT_BASE_URL=https://<POD_ID>-8000.proxy.runpod.net/v1` and `STUDENT_API_KEY=$VLLM_API_KEY` in `.env`. If
-`model/model_client.py` sets sampling or `chat_template_kwargs`, copy them into `STUDENT_EXTRA` (a small model degrades
-outside its training setup).
+In `.env`: `STUDENT_MODEL=<endpoint-name>`, `STUDENT_API_KEY=<secret from pii-key.json>`
+(`STUDENT_BASE_URL` is already `https://inference.distillabs.ai/v1`). Copy any sampling or `chat_template_kwargs` that
+`model/model_client.py` sets into `STUDENT_EXTRA`: a small model degrades outside its training setup. Once the
+deployment stops, the endpoint silently answers from the fallback model, so check the reply's model before trusting a score.
 
 ```bash
 make student N=50 YES=1 && make eval SYSTEM=student
 make demo TEXT="Hallo, ich bin Anna Berg, Depot 4829173650, IBAN DE89 3704 0044 0532 0130 00"
 ```
-Stop the pod when done. Retrain loop: run the teacher on `SPLIT=pool`, `make eval SPLIT=pool`, then
+Retrain loop: run the teacher on `SPLIT=pool`, `make eval SPLIT=pool`, then
 `make distil-prep ARGS=--from-langfuse`, bump `STUDENT_VERSION`, repeat step 4–5.
+
+## Results
+
+### distil teacher evaluation (2026-10-19)
+Teacher `openai.gpt-oss-120b` on the 300-row test set, run from dataset `2b765fd1-7d70-42e5-a927-5e4a8936f624`
+(evaluation `45824391-7935-4b98-86e1-e8d9fbfd9a89`). Test labels were not yet hand-reviewed.
+
+| Metric | Score |
+|---|---|
+| Rouge | 86.63% |
+| Binary (exact match of the whole entity list) | 8.33% |
+| LLM-as-a-Judge (vs. reference) | 55.67% |
+| LLM-as-a-Judge (reference-free) | 84.67% |
+
+Binary is low because entity order and span splitting rarely match exactly; ignore it. The gap between the two judge
+scores means the teacher's answers look reasonable but often disagree with the gold labels (label noise or prompt
+mismatch). These are not the headline metric: leak rate and critical recall come from `make eval`.
 
 ## Repo map
 

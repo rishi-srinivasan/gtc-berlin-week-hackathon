@@ -8,7 +8,7 @@ import pii  # noqa: F401  (loads .env and ENV_FILE)
 GROUPS = {
     "Langfuse": ["LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_BASE_URL"],
     "Teacher": ["TEACHER_MODEL", "TEACHER_BASE_URL", "TEACHER_API_KEY"],
-    "Student (Runpod)": ["STUDENT_BASE_URL", "STUDENT_MODEL", "STUDENT_API_KEY"],
+    "Student (distil endpoint)": ["STUDENT_BASE_URL", "STUDENT_MODEL", "STUDENT_API_KEY"],
     "Frontier (demo)": ["FRONTIER_MODEL", "FRONTIER_BASE_URL", "FRONTIER_API_KEY"],
 }
 
