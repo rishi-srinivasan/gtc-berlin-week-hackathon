@@ -49,6 +49,7 @@ Rules:
   (house number = BUILDINGNUM), postcode = ZIPCODE, dates of birth = DATEOFBIRTH.
 - Broker/bank texts: depot or portfolio numbers = PORTFOLIOID; IPv4/IPv6 addresses = IPADDRESS;
   age = AGE (only the number, e.g. "42" in "42 Jahre alt"); salary or income = SALARY (the amount with its currency).
+- Other identifiers: PIN = PASSWORD; passport and IMEI numbers = IDCARDNUM; MAC address = IPADDRESS; crypto wallet address = ACCOUNTNUM.
 - ISIN, WKN, ticker symbols and product names are NOT personal data: never list them.
 - Do not label generic words, company names, countries or dates that are not a birth date.
 - If there is no PII return {{"entities": []}}.
