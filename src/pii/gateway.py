@@ -10,7 +10,7 @@ from .extract import extract
 from .llm import make_chat
 from .redact import mask, rehydrate
 
-FRONTIER_PROMPT = ("Antworte auf Deutsch, kurz. Platzhalter wie [GIVENNAME_1] stehen für geschützte Daten; "
+FRONTIER_PROMPT = ("Antworte auf Deutsch, kurz. Platzhalter wie [GIVEN_NAME_1] stehen für geschützte Daten; "
                    "übernimm sie unverändert in deine Antwort, wo du sie erwähnst.")
 
 

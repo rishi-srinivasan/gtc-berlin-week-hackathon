@@ -1,11 +1,12 @@
 """Synthetic broker/bank support messages with PII (German), labelled by construction.
 
-Adds the classes the Hugging Face dataset lacks: PORTFOLIOID, IPADDRESS, AGE, SALARY (and IBAN in
+Adds the classes the Hugging Face dataset lacks: PORTFOLIO_ID, IP_ADDRESS, AGE, SALARY (and IBAN in
 realistic context). Also emits ISINs, which are NOT personal data, as negatives.
 All values are fake (Faker de_DE); the Steuer-ID is checksum-valid, IBAN/card pass their checks.
 """
 import random
 import re
+from string import ascii_uppercase as UPPER
 
 from faker import Faker
 
@@ -13,29 +14,29 @@ ISINS = ["US0378331005", "IE00B4L5Y983", "DE0007164600", "IE00BK5BQT80", "DE000B
 
 GREETINGS = ["Guten Tag,", "Hallo liebes Support-Team,", "Sehr geehrte Damen und Herren,", "Hi,", "Hallo,"]
 INTROS = [
-    "mein Name ist {GIVENNAME} {SURNAME}.",
-    "ich bin {GIVENNAME} {SURNAME}, {AGE} Jahre alt.",
-    "hier schreibt {GIVENNAME} {SURNAME} (Depotnummer {PORTFOLIOID}).",
-    "{SURNAME}, {GIVENNAME}, Depot {PORTFOLIOID}.",
+    "mein Name ist {GIVEN_NAME} {SURNAME}.",
+    "ich bin {GIVEN_NAME} {SURNAME}, {AGE} Jahre alt.",
+    "hier schreibt {GIVEN_NAME} {SURNAME} (Depotnummer {PORTFOLIO_ID}).",
+    "{SURNAME}, {GIVEN_NAME}, Depot {PORTFOLIO_ID}.",
 ]
 BODIES = [
     "Bitte zahlen Sie den Erlös meines Verkaufs auf {IBAN} aus.",
-    "Meine Steuer-ID lautet {TAXNUM}, bitte aktualisieren Sie den Freistellungsauftrag.",
-    "Meine Karte {CREDITCARDNUMBER} wurde nicht akzeptiert, bitte sperren und neu ausstellen.",
-    "Ich bin umgezogen: neue Adresse {STREET} {BUILDINGNUM}, {ZIPCODE} {CITY}.",
-    "Sie erreichen mich unter {TELEPHONENUM} oder per Mail an {EMAIL}.",
-    "Beim Login von {IPADDRESS} wurde mein Zugang gesperrt.",
+    "Meine Steuer-ID lautet {TAX_NUM}, bitte aktualisieren Sie den Freistellungsauftrag.",
+    "Meine Karte {CREDIT_CARD_NUMBER} wurde nicht akzeptiert, bitte sperren und neu ausstellen.",
+    "Ich bin umgezogen: neue Adresse {STREET} {BUILDING_NUM}, {ZIP_CODE} {CITY}.",
+    "Sie erreichen mich unter {TELEPHONE_NUM} oder per Mail an {EMAIL}.",
+    "Beim Login von {IP_ADDRESS} wurde mein Zugang gesperrt.",
     "Mein Jahreseinkommen beträgt {SALARY}, bitte passen Sie mein Anlegerprofil an.",
     "Ich möchte den ETF {ISIN} monatlich besparen und dafür von {IBAN} abbuchen lassen.",
-    "Die Order für {ISIN} wurde nicht ausgeführt, mein Depot ist {PORTFOLIOID}.",
-    "Für die Kontoeröffnung brauche ich eine Bestätigung an {EMAIL}, Wohnort {ZIPCODE} {CITY}.",
-    "Der Anruf kam von {TELEPHONENUM}, bitte rufen Sie mich zurück wegen Depot {PORTFOLIOID}.",
+    "Die Order für {ISIN} wurde nicht ausgeführt, mein Depot ist {PORTFOLIO_ID}.",
+    "Für die Kontoeröffnung brauche ich eine Bestätigung an {EMAIL}, Wohnort {ZIP_CODE} {CITY}.",
+    "Der Anruf kam von {TELEPHONE_NUM}, bitte rufen Sie mich zurück wegen Depot {PORTFOLIO_ID}.",
 ]
 NO_PII = ["Wie hoch sind die Gebühren für den ETF {ISIN}?", "Wann wird die Sparplan-Ausführung gebucht?",
           "Gibt es eine App für Android und iOS?"]
-CLOSINGS = ["Vielen Dank!", "Mit freundlichen Grüßen, {GIVENNAME} {SURNAME}", "Danke und Gruß", "Bitte um schnelle Hilfe."]
+CLOSINGS = ["Vielen Dank!", "Mit freundlichen Grüßen, {GIVEN_NAME} {SURNAME}", "Danke und Gruß", "Bitte um schnelle Hilfe."]
 
-SLOT = re.compile(r"\{([A-Z]+)\}")
+SLOT = re.compile(r"\{([A-Z_]+)\}")
 
 
 def _check_digit(d: list[int]) -> int:
@@ -65,16 +66,23 @@ def values(fake: Faker, rng: random.Random) -> dict:
     amount = rng.choice([rng.randint(18, 95) * 1000, rng.randint(150, 900) * 10 * 12, rng.randint(18, 60) * 100])
     iban, card = fake.iban(), fake.credit_card_number()
     return {
-        "GIVENNAME": fake.first_name(), "SURNAME": fake.last_name(),
-        "PORTFOLIOID": str(rng.randint(10**9, 10**10 - 1)),
+        "GIVEN_NAME": fake.first_name(), "SURNAME": fake.last_name(),
+        "PORTFOLIO_ID": str(rng.randint(10**9, 10**10 - 1)),
         "IBAN": group(iban) if rng.random() < 0.6 else iban,
-        "TAXNUM": steuer_id(rng),
-        "CREDITCARDNUMBER": group(card) if rng.random() < 0.6 else card,
-        "STREET": fake.street_name(), "BUILDINGNUM": str(fake.building_number()),
-        "ZIPCODE": fake.postcode(), "CITY": fake.city(),
-        "TELEPHONENUM": fake.phone_number(), "EMAIL": fake.ascii_email(),
-        "IPADDRESS": fake.ipv6() if rng.random() < 0.15 else fake.ipv4_public(),
+        "TAX_NUM": steuer_id(rng),
+        "CREDIT_CARD_NUMBER": group(card) if rng.random() < 0.6 else card,
+        "STREET": fake.street_name(), "BUILDING_NUM": str(fake.building_number()),
+        "ZIP_CODE": fake.postcode(), "CITY": fake.city(),
+        "TELEPHONE_NUM": fake.phone_number(), "EMAIL": fake.ascii_email(),
+        "IP_ADDRESS": fake.ipv6() if rng.random() < 0.15 else fake.ipv4_public(),
         "AGE": str(rng.randint(18, 85)),
+        "ACCOUNT_NUM": str(rng.randint(10**7, 10**10 - 1)),
+        "DATE_OF_BIRTH": fake.date_of_birth(minimum_age=18, maximum_age=85).strftime("%d.%m.%Y"),
+        "DRIVER_LICENSE_NUM": fake.bothify("?#########", letters=UPPER),
+        "ID_CARD_NUM": fake.bothify("?#########", letters=UPPER),
+        "PASSWORD": fake.password(length=rng.randint(8, 14)),
+        "SOCIAL_NUM": f"{rng.randint(10, 99)} {fake.date_of_birth().strftime('%d%m%y')} {rng.choice(UPPER)} {rng.randint(100, 999)}",
+        "USER_NAME": fake.user_name(),
         "SALARY": f"{amount:,}".replace(",", ".") + rng.choice([" €", " Euro", " EUR"]),
         "ISIN": rng.choice(ISINS),  # not PII: stays unlabelled
     }
@@ -102,7 +110,7 @@ def make_row(uid: int, fake: Faker, rng: random.Random) -> dict:
         parts.append(rng.choice(INTROS))
         parts += rng.sample(BODIES, rng.randint(1, 3))
         parts.append(rng.choice(CLOSINGS))
-    # AGE/PORTFOLIOID may appear in the intro without a body; every slot is filled from vals regardless
+    # AGE/PORTFOLIO_ID may appear in the intro without a body; every slot is filled from vals regardless
     text, spans = render(" ".join(parts), values(fake, rng))
     return {"uid": uid, "locale": "DE", "source_text": text, "privacy_mask": spans, "source": "synthetic"}
 

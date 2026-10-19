@@ -1,22 +1,24 @@
 """Entity labels, tiers, and the JSON output schema shared by every system."""
 
 DATASET_LABELS = [
-    "ACCOUNTNUM", "BUILDINGNUM", "CITY", "CREDITCARDNUMBER", "DATEOFBIRTH",
-    "DRIVERLICENSENUM", "EMAIL", "GIVENNAME", "IDCARDNUM", "PASSWORD",
-    "SOCIALNUM", "STREET", "SURNAME", "TAXNUM", "TELEPHONENUM", "USERNAME",
-    "ZIPCODE",
+    "ACCOUNT_NUM", "BUILDING_NUM", "CITY", "CREDIT_CARD_NUMBER", "DATE_OF_BIRTH",
+    "DRIVER_LICENSE_NUM", "EMAIL", "GIVEN_NAME", "ID_CARD_NUM", "PASSWORD",
+    "SOCIAL_NUM", "STREET", "SURNAME", "TAX_NUM", "TELEPHONE_NUM", "USER_NAME",
+    "ZIP_CODE",
 ]
 # Not in the dataset: IBAN is injected by data.py; the rest come from synth.py (broker-style messages).
-EXTRA_LABELS = ["IBAN", "PORTFOLIOID", "IPADDRESS", "AGE", "SALARY"]
+EXTRA_LABELS = ["IBAN", "PORTFOLIO_ID", "IP_ADDRESS", "AGE", "SALARY"]
 LABELS = DATASET_LABELS + EXTRA_LABELS
+# The Hugging Face dataset spells these without underscores (ACCOUNTNUM); data.py renames on load.
+HF_RENAME = {l.replace("_", ""): l for l in DATASET_LABELS if "_" in l}
 
-CRITICAL = {"IBAN", "PORTFOLIOID", "ACCOUNTNUM", "CREDITCARDNUMBER", "IDCARDNUM", "TAXNUM",
-            "SOCIALNUM", "PASSWORD", "DRIVERLICENSENUM"}
-HIGH = {"GIVENNAME", "SURNAME", "USERNAME", "EMAIL", "TELEPHONENUM", "STREET", "IPADDRESS", "SALARY"}
+CRITICAL = {"IBAN", "PORTFOLIO_ID", "ACCOUNT_NUM", "CREDIT_CARD_NUMBER", "ID_CARD_NUM", "TAX_NUM",
+            "SOCIAL_NUM", "PASSWORD", "DRIVER_LICENSE_NUM"}
+HIGH = {"GIVEN_NAME", "SURNAME", "USER_NAME", "EMAIL", "TELEPHONE_NUM", "STREET", "IP_ADDRESS", "SALARY"}
 
 # Classes compared by digits only when checking for leaks.
-NUMERIC = {"TELEPHONENUM", "IBAN", "CREDITCARDNUMBER", "ACCOUNTNUM", "IDCARDNUM",
-           "TAXNUM", "SOCIALNUM", "DRIVERLICENSENUM", "PORTFOLIOID"}
+NUMERIC = {"TELEPHONE_NUM", "IBAN", "CREDIT_CARD_NUMBER", "ACCOUNT_NUM", "ID_CARD_NUM",
+           "TAX_NUM", "SOCIAL_NUM", "DRIVER_LICENSE_NUM", "PORTFOLIO_ID"}
 
 OUTPUT_SCHEMA = {
     "type": "object",
@@ -43,13 +45,13 @@ Return ONLY a JSON object: {{"entities": [{{"text": "...", "label": "..."}}]}}
 Rules:
 - "text" must be copied EXACTLY (character for character) from the input.
 - List every occurrence's value once is enough; do not invent or normalise values.
-- Split names: first names are GIVENNAME, family names SURNAME (also for "Dr. Müller": only "Müller").
+- Split names: first names are GIVEN_NAME, family names SURNAME (also for "Dr. Müller": only "Müller").
 - German formats: phone numbers (+49 ..., 0171 ...), IBAN (DE.. with or without spaces),
-  tax ID (TAXNUM), social insurance number (SOCIALNUM), street names WITHOUT the house number
-  (house number = BUILDINGNUM), postcode = ZIPCODE, dates of birth = DATEOFBIRTH.
-- Broker/bank texts: depot or portfolio numbers = PORTFOLIOID; IPv4/IPv6 addresses = IPADDRESS;
+  tax ID (TAX_NUM), social insurance number (SOCIAL_NUM), street names WITHOUT the house number
+  (house number = BUILDING_NUM), postcode = ZIP_CODE, dates of birth = DATE_OF_BIRTH.
+- Broker/bank texts: depot or portfolio numbers = PORTFOLIO_ID; IPv4/IPv6 addresses = IP_ADDRESS;
   age = AGE (only the number, e.g. "42" in "42 Jahre alt"); salary or income = SALARY (the amount with its currency).
-- Other identifiers: PIN = PASSWORD; passport and IMEI numbers = IDCARDNUM; MAC address = IPADDRESS; crypto wallet address = ACCOUNTNUM.
+- Other identifiers: PIN = PASSWORD; passport and IMEI numbers = ID_CARD_NUM; MAC address = IP_ADDRESS; crypto wallet address = ACCOUNT_NUM.
 - ISIN, WKN, ticker symbols and product names are NOT personal data: never list them.
 - Do not label generic words, company names, countries or dates that are not a birth date.
 - If there is no PII return {{"entities": []}}.

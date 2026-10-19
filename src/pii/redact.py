@@ -1,7 +1,7 @@
 """Turn extracted entities into masked text with numbered placeholders, and back."""
 import re
 
-PLACEHOLDER = re.compile(r"\[[A-Z]+_\d+\]")
+PLACEHOLDER = re.compile(r"\[[A-Z_]+_\d+\]")
 
 
 def _occurrences(text: str, value: str):

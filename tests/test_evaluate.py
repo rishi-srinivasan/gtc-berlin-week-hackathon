@@ -15,14 +15,14 @@ def test_upper95():
 
 def test_evaluate_counts_missed_entity_as_leak():
     gold = [{"uid": 1, "text": "Anna Berg wohnt in Ulm",
-             "entities": [{"label": "GIVENNAME", "text": "Anna"}, {"label": "CITY", "text": "Ulm"}]}]
-    preds = {1: {"entities": [{"label": "GIVENNAME", "text": "Anna"}], "trace_id": None}}
+             "entities": [{"label": "GIVEN_NAME", "text": "Anna"}, {"label": "CITY", "text": "Ulm"}]}]
+    preds = {1: {"entities": [{"label": "GIVEN_NAME", "text": "Anna"}], "trace_id": None}}
     leaks, per_label, tier, _ = evaluate(gold, preds)
-    assert leaks == [True] and per_label["CITY", "tp"] == 0 and per_label["GIVENNAME", "tp"] == 1
+    assert leaks == [True] and per_label["CITY", "tp"] == 0 and per_label["GIVEN_NAME", "tp"] == 1
 
 
 def test_short_values_need_word_boundaries():
     assert not leaked("AGE", "42", "Konto 1420 offen")
     assert leaked("AGE", "42", "ich bin 42 Jahre")
-    assert not leaked("PORTFOLIOID", "1234567890", "Nr 91234567890")
+    assert not leaked("PORTFOLIO_ID", "1234567890", "Nr 91234567890")
     assert leaked("SALARY", "58.000 €", "Gehalt 58.000 € brutto")

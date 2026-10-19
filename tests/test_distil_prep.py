@@ -7,9 +7,9 @@ from distil_prep import JOB, to_row  # noqa: E402
 
 
 def test_row_shape_and_json_answer():
-    r = to_row("Hallo Anna", [{"text": "Anna", "label": "GIVENNAME"}])
+    r = to_row("Hallo Anna", [{"text": "Anna", "label": "GIVEN_NAME"}])
     assert [m["role"] for m in r["messages"]] == ["user", "assistant"]
-    assert json.loads(r["messages"][1]["content"]) == {"entities": [{"text": "Anna", "label": "GIVENNAME"}]}
+    assert json.loads(r["messages"][1]["content"]) == {"entities": [{"text": "Anna", "label": "GIVEN_NAME"}]}
 
 
 def test_empty_answer_is_nonempty_content():
