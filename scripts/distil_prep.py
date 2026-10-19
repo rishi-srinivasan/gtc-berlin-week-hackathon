@@ -9,6 +9,7 @@ configuration.md). Nothing is submitted; the commands to run are printed at the 
 import argparse
 import json
 import os
+from itertools import islice
 from pathlib import Path
 
 from dotenv import find_dotenv, load_dotenv
@@ -43,6 +44,8 @@ synthgen:
         - "dominated by names and contact details"
         - "dominated by bank, tax, ID and payment numbers (IBAN, tax ID, credit card)"
         - "a mix of address parts (street, house number, postcode, city) and dates of birth"
+trace_processing:
+  observation_format: langfuse   # records of a distil inference endpoint (traces.jsonl)
 """
 
 JOB = {
@@ -61,6 +64,16 @@ JOB = {
 }
 
 
+TRACES = """
+Production traces in distil's `langfuse` format (config: trace_processing.observation_format: langfuse):
+  distil inference-endpoint create <endpoint-name>           # point the app at it; calls are recorded
+  distil inference-endpoint download-traces --all <endpoint-name>      # -> <endpoint-name>-traces.jsonl
+  uv run python scripts/distil_prep.py --traces <endpoint-name>-traces.jsonl   # keeps your test.jsonl alongside
+  distil dataset create --data distil                        # picks up train/test/traces.jsonl
+  # or, all endpoint records without a test set: distil traces create-from-inference-endpoint <endpoint-name>
+  #   then: distil dataset create-from-traces --config distil/config.yaml --job-description distil/job_description.json <traces-id>"""
+
+
 def to_row(text: str, entities: list[dict]) -> dict:
     answer = json.dumps({"entities": entities}, ensure_ascii=False)
     return {"messages": [{"role": "user", "content": text}, {"role": "assistant", "content": answer}]}
@@ -77,32 +90,38 @@ def unjson(x):
         return x
 
 
-def langfuse_rows(pool: list[dict], blocked: set[str], limit: int) -> list[dict]:
-    """Teacher outputs from Langfuse traces with pii_leak == 0, restricted to pool inputs."""
-    from langfuse import get_client
-    lf, pool_texts, rows, cursor = get_client(), {r["text"] for r in pool}, [], None
-    while len(rows) < limit:
+def clean_trace_ids(lf):
+    """Trace ids of teacher calls scored pii_leak == 0, paging through Langfuse scores."""
+    cursor = None
+    while True:
         page = lf.api.scores.get_many(name="pii_leak", limit=100, cursor=cursor, fields="subject")
-        for s in page.data:
-            if s.value != 0 or s.subject.kind != "trace":
-                continue
-            obs = lf.api.observations.get_many(trace_id=s.subject.id, name="teacher-redact",
-                                               fields="core,io", limit=1).data
-            if not obs:
-                continue
-            text, out = unjson(obs[0].input), unjson(obs[0].output)  # v2 API returns io as raw JSON strings
-            if isinstance(text, str) and text in pool_texts and text not in blocked and isinstance(out, dict):
-                rows.append(to_row(text, out["entities"]))
+        yield from (s.subject.id for s in page.data if s.value == 0 and s.subject.kind == "trace")
         cursor = getattr(page.meta, "cursor", None)
         if not cursor:
-            break
-    return rows[:limit]
+            return
+
+
+def teacher_row(lf, trace_id: str, allowed: set[str]) -> dict | None:
+    obs = lf.api.observations.get_many(trace_id=trace_id, name="teacher-redact", fields="core,io", limit=1).data
+    if not obs:
+        return None
+    text, out = unjson(obs[0].input), unjson(obs[0].output)  # v2 API returns io as raw JSON strings
+    return to_row(text, out["entities"]) if text in allowed and isinstance(out, dict) else None
+
+
+def langfuse_rows(pool: list[dict], blocked: set[str], limit: int) -> list[dict]:
+    """Teacher outputs from Langfuse traces with pii_leak == 0, restricted to pool inputs (never test)."""
+    from langfuse import get_client
+    lf, allowed = get_client(), {r["text"] for r in pool} - blocked
+    rows = (teacher_row(lf, tid, allowed) for tid in clean_trace_ids(lf))
+    return list(islice((r for r in rows if r), limit))
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--from-langfuse", action="store_true")
     ap.add_argument("--limit", type=int, default=200)
+    ap.add_argument("--traces", help="traces.jsonl downloaded from a distil inference endpoint; copied next to the data")
     ap.add_argument("--data", default="data")
     ap.add_argument("--out", default="distil")
     a = ap.parse_args()
@@ -122,11 +141,14 @@ def main():
     (out / "job_description.json").write_text(json.dumps(JOB, ensure_ascii=False, indent=2))
     for name, rows in (("train.jsonl", train), ("test.jsonl", [to_row(r["text"], r["entities"]) for r in test])):
         (out / name).write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
+    if a.traces:
+        (out / "traces.jsonl").write_text(Path(a.traces).read_text())
     print(f"{out}/: {len(train)} train rows, {len(test)} test rows. Not submitted. Next (costs credits):")
     print(f"  distil dataset create --data {out}                       # validates, prints <dataset-id>")
     print("  distil dataset generate-synthetic-data-train --smoke <dataset-id>   # cheap smoke first")
     print("  distil dataset generate-synthetic-data-train <dataset-id>")
     print("  distil slm create-from-dataset <dataset-id>")
+    print(TRACES)
 
 
 if __name__ == "__main__":

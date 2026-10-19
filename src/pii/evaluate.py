@@ -44,29 +44,35 @@ def upper95(k: int, n: int) -> float:
     return (p + z * z / (2 * n) + z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / (1 + z * z / n)
 
 
+TIERS = (("critical", CRITICAL), ("high", HIGH))
+
+
+def score_row(g: dict, p: dict):
+    """Return (gold keys -> entity, predicted keys, leaked gold keys) for one message."""
+    masked, _ = mask(g["text"], p["entities"])
+    gold = {(e["label"], norm(e["label"], e["text"])): e for e in g["entities"]}
+    pred = {(e["label"], norm(e["label"], e["text"])) for e in p["entities"]}
+    return gold, pred, {k for k, e in gold.items() if leaked(e["label"], e["text"], masked)}
+
+
 def evaluate(gold_rows: list[dict], preds: dict[int, dict]):
-    leak_msgs, per_label, tier = [], Counter(), Counter()
-    rows_out = []
+    leak_msgs, per_label, tier, rows_out = [], Counter(), Counter(), []
     for g in gold_rows:
-        p = preds.get(g["uid"])
-        if p is None:
+        if g["uid"] not in preds:
             continue
-        masked, _ = mask(g["text"], p["entities"])
-        gold = {(e["label"], norm(e["label"], e["text"])): e for e in g["entities"]}
-        pred = {(e["label"], norm(e["label"], e["text"])) for e in p["entities"]}
-        leaks = [k for k, e in gold.items() if leaked(e["label"], e["text"], masked)]
+        p = preds[g["uid"]]
+        gold, pred, leaks = score_row(g, p)
         leak_msgs.append(bool(leaks))
         for k in gold:
             per_label[k[0], "gold"] += 1
             per_label[k[0], "tp"] += k in pred
         for k in pred:
             per_label[k[0], "pred"] += 1
-        for name, labels in (("critical", CRITICAL), ("high", HIGH)):
-            for k in gold:
-                if k[0] in labels:
-                    tier[name, "gold"] += 1
-                    tier[name, "tp"] += k in pred
-                    tier[name, "leaked"] += k in leaks
+        for name, labels in TIERS:
+            ks = [k for k in gold if k[0] in labels]
+            tier[name, "gold"] += len(ks)
+            tier[name, "tp"] += sum(k in pred for k in ks)
+            tier[name, "leaked"] += sum(k in leaks for k in ks)
         rows_out.append({"trace_id": p.get("trace_id"), "leaked": len(leaks), "n_gold": len(gold)})
     return leak_msgs, per_label, tier, rows_out
 

@@ -34,10 +34,7 @@ def apply() -> str:
     return name
 
 
-def main():
-    from dotenv import find_dotenv, load_dotenv
-    load_dotenv(find_dotenv(usecwd=True))
-    name, values = profile_values()
+def show_settings(name: str, values: dict):
     print(f"profile: {name}")
     for k, v in values.items():
         cur = os.getenv(k)
@@ -45,16 +42,28 @@ def main():
         print(f"  {k} = {v!r}{note}")
     for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "HF_TOKEN", "RUNPOD_API_KEY"):
         print(f"  {key}: {'set' if os.getenv(key) else 'missing'}")
-    if "ollama" in {os.getenv("TEACHER_PROVIDER"), os.getenv("STUDENT_PROVIDER"), os.getenv("FRONTIER_PROVIDER")}:
-        import httpx
-        try:
-            have = {m["name"] for m in httpx.get(os.getenv("OLLAMA_HOST", "http://localhost:11434") + "/api/tags").json()["models"]}
-            for role in ("TEACHER", "STUDENT", "FRONTIER"):
-                if os.getenv(f"{role}_PROVIDER") == "ollama":
-                    m = os.getenv(f"{role}_MODEL")
-                    print(f"  ollama {role.lower()} {m}: {'ok' if m in have else 'NOT PULLED -> ollama pull ' + str(m)}")
-        except httpx.HTTPError:
-            print("  ollama: not reachable (start it with `ollama serve`)")
+
+
+def check_ollama():
+    import httpx
+    roles = [r for r in ("TEACHER", "STUDENT", "FRONTIER") if os.getenv(f"{r}_PROVIDER") == "ollama"]
+    if not roles:
+        return
+    try:
+        tags = httpx.get(os.getenv("OLLAMA_HOST", "http://localhost:11434") + "/api/tags").json()["models"]
+    except httpx.HTTPError:
+        return print("  ollama: not reachable (start it with `ollama serve`)")
+    have = {m["name"] for m in tags}
+    for r in roles:
+        m = os.getenv(f"{r}_MODEL")
+        print(f"  ollama {r.lower()} {m}: {'ok' if m in have else 'NOT PULLED -> ollama pull ' + str(m)}")
+
+
+def main():
+    from dotenv import find_dotenv, load_dotenv
+    load_dotenv(find_dotenv(usecwd=True))
+    show_settings(*profile_values())
+    check_ollama()
 
 
 if __name__ == "__main__":
