@@ -8,6 +8,7 @@ configuration.md). Nothing is submitted; the commands to run are printed at the 
 """
 import argparse
 import json
+import os
 from pathlib import Path
 
 from dotenv import find_dotenv, load_dotenv
@@ -19,8 +20,8 @@ from pii.schema import SYSTEM_PROMPT  # noqa: E402
 CONFIG = """\
 base:
   task: question-answering
-  student_model_name: Qwen3-1.7B
-  teacher_model_name: openai.gpt-oss-120b
+  student_model_name: {student}
+  teacher_model_name: {teacher}
   random_seed: 123
 tuning:
   num_train_epochs: 4
@@ -116,7 +117,8 @@ def main():
     else:
         train = [to_row(r["text"], r["entities"]) for r in read(data / "seed.jsonl")]
     out.mkdir(exist_ok=True)
-    (out / "config.yaml").write_text(CONFIG)
+    (out / "config.yaml").write_text(CONFIG.format(
+        student=os.getenv("DISTIL_STUDENT", "Qwen3-1.7B"), teacher=os.getenv("DISTIL_TEACHER", "openai.gpt-oss-120b")))
     (out / "job_description.json").write_text(json.dumps(JOB, ensure_ascii=False, indent=2))
     for name, rows in (("train.jsonl", train), ("test.jsonl", [to_row(r["text"], r["entities"]) for r in test])):
         (out / name).write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))

@@ -10,24 +10,25 @@ from .redact import mask, rehydrate  # noqa: E402
 
 
 def frontier_reply(masked: str) -> str:
-    """Ask the frontier LLM about the already-masked text (Anthropic first, else OpenAI)."""
+    """Ask the frontier LLM about the already-masked text (FRONTIER_PROVIDER: ollama|anthropic|openai)."""
     system = ("Antworte auf Deutsch, kurz. Platzhalter wie [GIVENNAME_1] stehen für geschützte Daten; "
               "übernimm sie unverändert in deine Antwort, wo du sie erwähnst.")
-    if os.getenv("ANTHROPIC_API_KEY"):
+    provider = os.getenv("FRONTIER_PROVIDER", "ollama")
+    msgs = [{"role": "system", "content": system}, {"role": "user", "content": masked}]
+    if provider == "ollama":
+        from . import ollama
+        return ollama.chat(os.getenv("FRONTIER_MODEL", "gemma4:12b"), msgs, schema=None)[0]
+    if provider == "anthropic":
         import anthropic
         r = anthropic.Anthropic().messages.create(
             model=os.getenv("FRONTIER_MODEL", "claude-sonnet-5-5"), max_tokens=500, system=system,
-            messages=[{"role": "user", "content": masked}])
+            messages=msgs[1:])
         return r.content[0].text
-    if not os.getenv("OPENAI_API_KEY"):  # no cloud key: stay local
-        from . import ollama
-        msgs = [{"role": "system", "content": system}, {"role": "user", "content": masked}]
-        return ollama.chat(os.getenv("FRONTIER_MODEL", "gemma4:12b"), msgs, schema=None)[0]
-    import openai
-    r = openai.OpenAI().chat.completions.create(
-        model=os.getenv("FRONTIER_MODEL", "gpt-5-mini"),
-        messages=[{"role": "system", "content": system}, {"role": "user", "content": masked}])
-    return r.choices[0].message.content
+    if provider == "openai":
+        import openai
+        r = openai.OpenAI().chat.completions.create(model=os.getenv("FRONTIER_MODEL", "gpt-5-mini"), messages=msgs)
+        return r.choices[0].message.content
+    raise SystemExit(f"FRONTIER_PROVIDER must be ollama|anthropic|openai, got {provider!r}")
 
 
 def main():

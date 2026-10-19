@@ -4,7 +4,10 @@ German PII detection for a GDPR gateway: a small model finds PII, code masks it 
 sees only the masked text, and the reply is rehydrated. Loop: Langfuse traces + evals -> distil labs trains a student
 -> serve on Runpod -> trace -> retrain.
 
-**Local mode (default):** `TEACHER_PROVIDER=ollama` (gemma4:12b) and `STUDENT_PROVIDER=ollama` (qwen3:1.7b), no cloud keys needed. Switch with `TEACHER_PROVIDER=anthropic|openai`, `STUDENT_PROVIDER=runpod`. Local GGUF import: `scripts/ollama_import.md`.
+**Profiles** (`config.toml`): `local` (default; Ollama teacher gemma4:12b + student qwen3:1.7b, no keys, free) and `hackathon`
+(cloud teacher + student served on Runpod; fill the `<placeholders>`). Switch with `PII_PROFILE=hackathon` (shell or `.env`);
+override any single value with an env var of the same name. `uv run python -m pii.config` shows the effective settings,
+which keys are missing, and which Ollama models still need pulling. Secrets stay in `.env`. Local GGUF import: `scripts/ollama_import.md`.
 
 Setup: `uv sync`, copy `.env.example` to `.env` (the repo-root `.env` is picked up too), fill the names. Never commit `.env`.
 
