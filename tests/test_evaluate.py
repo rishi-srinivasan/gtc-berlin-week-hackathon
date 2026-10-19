@@ -1,5 +1,4 @@
 from pii.evaluate import evaluate, leaked, upper95
-from pii.redact import mask
 
 
 def test_leak_text_and_numeric():

@@ -174,3 +174,7 @@ cython_debug/
 data/
 distil/
 results/
+# personal local testing (Ollama, GLiNER); not shared
+local/
+model/
+skills-lock.json

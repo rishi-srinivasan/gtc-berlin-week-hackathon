@@ -2,9 +2,9 @@
 
   uv run python scripts/distil_prep.py                  # seed.jsonl + test_clean.jsonl -> distil/
   uv run python scripts/distil_prep.py --from-langfuse  # train rows from teacher traces scored pii_leak=0
+  uv run python scripts/distil_prep.py --traces FILE    # add distil-endpoint traces (langfuse format)
 
-Formats follow distil-cli-skill references (data-preparation/question-answering.md, job-description.md,
-configuration.md). Nothing is submitted; the commands to run are printed at the end.
+Formats follow the distil-cli skill (question-answering task, JSON answers). Nothing is submitted.
 """
 import argparse
 import json
@@ -12,11 +12,8 @@ import os
 from itertools import islice
 from pathlib import Path
 
-from dotenv import find_dotenv, load_dotenv
-
-load_dotenv(find_dotenv(usecwd=True))
-
-from pii.schema import SYSTEM_PROMPT  # noqa: E402
+from pii.data import load_gold, read_jsonl
+from pii.schema import SYSTEM_PROMPT
 
 CONFIG = """\
 base:
@@ -66,23 +63,9 @@ JOB = {
 }
 
 
-TRACES = """
-Production traces in distil's `langfuse` format (config: trace_processing.observation_format: langfuse):
-  distil inference-endpoint create <endpoint-name>           # point the app at it; calls are recorded
-  distil inference-endpoint download-traces --all <endpoint-name>      # -> <endpoint-name>-traces.jsonl
-  uv run python scripts/distil_prep.py --traces <endpoint-name>-traces.jsonl   # keeps your test.jsonl alongside
-  distil dataset create --data distil                        # picks up train/test/traces.jsonl
-  # or, all endpoint records without a test set: distil traces create-from-inference-endpoint <endpoint-name>
-  #   then: distil dataset create-from-traces --config distil/config.yaml --job-description distil/job_description.json <traces-id>"""
-
-
 def to_row(text: str, entities: list[dict]) -> dict:
     answer = json.dumps({"entities": entities}, ensure_ascii=False)
     return {"messages": [{"role": "user", "content": text}, {"role": "assistant", "content": answer}]}
-
-
-def read(path: Path) -> list[dict]:
-    return [json.loads(l) for l in path.open()]
 
 
 def unjson(x):
@@ -123,34 +106,23 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--from-langfuse", action="store_true")
     ap.add_argument("--limit", type=int, default=200)
-    ap.add_argument("--traces", help="traces.jsonl downloaded from a distil inference endpoint; copied next to the data")
-    ap.add_argument("--data", default="data")
-    ap.add_argument("--out", default="distil")
+    ap.add_argument("--traces", help="traces.jsonl downloaded from a distil inference endpoint")
     a = ap.parse_args()
-    data, out = Path(a.data), Path(a.out)
-    clean = data / "test_clean.jsonl"
-    if not clean.exists():
-        print("WARNING: data/test_clean.jsonl missing, using raw data/test.jsonl (review it first!)")
-    test = read(clean if clean.exists() else data / "test.jsonl")
-    blocked = {r["text"] for r in test}
+    test = load_gold("test")
     if a.from_langfuse:
-        train = langfuse_rows(read(data / "pool.jsonl"), blocked, a.limit)
+        train = langfuse_rows(read_jsonl("data/pool.jsonl"), {r["text"] for r in test}, a.limit)
     else:
-        train = [to_row(r["text"], r["entities"]) for r in read(data / "seed.jsonl")]
+        train = [to_row(r["text"], r["entities"]) for r in read_jsonl("data/seed.jsonl")]
+    out = Path("distil")
     out.mkdir(exist_ok=True)
-    (out / "config.yaml").write_text(CONFIG.format(
-        student=os.getenv("DISTIL_STUDENT", "Qwen3-1.7B"), teacher=os.getenv("DISTIL_TEACHER", "openai.gpt-oss-120b")))
+    (out / "config.yaml").write_text(CONFIG.format(student=os.getenv("DISTIL_STUDENT", "Qwen3-1.7B"),
+                                                   teacher=os.getenv("DISTIL_TEACHER", "openai.gpt-oss-120b")))
     (out / "job_description.json").write_text(json.dumps(JOB, ensure_ascii=False, indent=2))
-    for name, rows in (("train.jsonl", train), ("test.jsonl", [to_row(r["text"], r["entities"]) for r in test])):
-        (out / name).write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
+    for name, rows in (("train", train), ("test", [to_row(r["text"], r["entities"]) for r in test])):
+        (out / f"{name}.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
     if a.traces:
         (out / "traces.jsonl").write_text(Path(a.traces).read_text())
-    print(f"{out}/: {len(train)} train rows, {len(test)} test rows. Not submitted. Next (costs credits):")
-    print(f"  distil dataset create --data {out}                       # validates, prints <dataset-id>")
-    print("  distil dataset generate-synthetic-data-train --smoke <dataset-id>   # cheap smoke first")
-    print("  distil dataset generate-synthetic-data-train <dataset-id>")
-    print("  distil slm create-from-dataset <dataset-id>")
-    print(TRACES)
+    print(f"distil/: {len(train)} train, {len(test)} test rows. Nothing submitted; next: README step 4.")
 
 
 if __name__ == "__main__":

@@ -47,6 +47,19 @@ def to_example(row: dict) -> dict:
             "text": row["source_text"], "entities": ents, "privacy_mask": row["privacy_mask"]}
 
 
+def read_jsonl(path) -> list[dict]:
+    return [json.loads(line) for line in Path(path).open()]
+
+
+def load_gold(split: str) -> list[dict]:
+    """Gold rows of a split; the test split prefers the hand-reviewed data/test_clean.jsonl."""
+    if split == "test" and Path("data/test_clean.jsonl").exists():
+        return read_jsonl("data/test_clean.jsonl")
+    if split == "test":
+        print("note: data/test_clean.jsonl not found, using raw test labels (make review)")
+    return read_jsonl(f"data/{split}.jsonl")
+
+
 def load_german(locale: str | None, max_rows: int):
     from datasets import load_dataset
     ds = load_dataset("ai4privacy/pii-masking-400k", split="train", streaming=True)

@@ -1,7 +1,8 @@
+"""German PII redaction for the hackathon loop. Settings come from .env (+ ENV_FILE overrides, e.g. local/.env)."""
+import os
+
 from dotenv import find_dotenv, load_dotenv
 
-load_dotenv(find_dotenv(usecwd=True))  # secrets + overrides first, so they beat the profile
-
-from .config import apply  # noqa: E402
-
-apply()  # then fill remaining defaults from the active config.toml profile
+load_dotenv(find_dotenv(usecwd=True))
+if os.getenv("ENV_FILE"):
+    load_dotenv(os.environ["ENV_FILE"], override=True)
