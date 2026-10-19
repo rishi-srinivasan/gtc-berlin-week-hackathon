@@ -21,10 +21,10 @@ def export():
     if p.exists():
         preds = {r["uid"]: r["entities"] for r in map(json.loads, p.open())}
     with CSV.open("w", newline="") as f:
-        w = csv.DictWriter(f, ["uid", "locale", "text", "gold_entities", "predicted_entities"])
+        w = csv.DictWriter(f, ["uid", "locale", "source", "text", "gold_entities", "predicted_entities"])
         w.writeheader()
         for r in map(json.loads, (DATA / "test.jsonl").open()):
-            w.writerow({"uid": r["uid"], "locale": r["locale"], "text": r["text"],
+            w.writerow({"uid": r["uid"], "locale": r["locale"], "source": r.get("source", "hf"), "text": r["text"],
                         "gold_entities": json.dumps(r["entities"], ensure_ascii=False),
                         "predicted_entities": json.dumps(preds.get(r["uid"], []), ensure_ascii=False)})
     print("wrote", CSV)
@@ -39,7 +39,7 @@ def reimport():
             for e in ents:
                 assert e["label"] in LABELS, f"uid {r['uid']}: bad label {e['label']}"
                 assert e["text"] in r["text"], f"uid {r['uid']}: {e['text']!r} not in text"
-            rows.append({"uid": int(r["uid"]), "locale": r["locale"], "text": r["text"], "entities": ents})
+            rows.append({"uid": int(r["uid"]), "locale": r["locale"], "source": r["source"], "text": r["text"], "entities": ents})
     (DATA / "test_clean.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
     print(f"wrote data/test_clean.jsonl ({len(rows)} rows)")
 

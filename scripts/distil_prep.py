@@ -37,6 +37,7 @@ synthgen:
         - "a short customer-support email or chat message"
         - "a form or onboarding record with labelled fields"
         - "a free-text paragraph that mentions PII in passing"
+        - "a broker or bank support request (depot number, payout IBAN, tax exemption, card, login problem, income)"
         - "a text with no PII at all, so the answer is an empty entity list"
     - name: pii_mix
       description: which kinds of PII appear
@@ -59,7 +60,8 @@ JOB = {
         "Generate German texts (customer support, forms, emails, chat) containing realistic but fake "
         "PII: German names, phone numbers, addresses, dates of birth, German IBANs (with and without "
         "spaces), tax IDs, social insurance numbers, credit cards, ID card and driving licence "
-        "numbers, passwords and usernames. Vary length and formatting. The answer is the JSON object "
+        "numbers, passwords and usernames, plus broker-specific data: depot/portfolio numbers, IP "
+        "addresses, ages and salaries. Include ISINs/WKNs as non-PII distractors that must not be listed. Vary length and formatting. The answer is the JSON object "
         "described in the task, with values copied exactly from the text."),
 }
 

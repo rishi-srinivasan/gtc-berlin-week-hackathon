@@ -30,8 +30,8 @@ def leaked(label: str, value: str, masked: str) -> bool:
     visible = PLACEHOLDER.sub("\x00", masked)  # placeholder digits must not count as PII
     key = norm(label, value)
     if label in NUMERIC and key.isdigit():
-        return re.search(r"\D*".join(key), visible) is not None
-    return key in " ".join(visible.casefold().split())
+        return re.search(r"(?<!\d)" + r"\D*".join(key) + r"(?!\d)", visible) is not None
+    return re.search(r"(?<!\w)" + re.escape(key) + r"(?!\w)", " ".join(visible.casefold().split())) is not None
 
 
 def upper95(k: int, n: int) -> float:
@@ -73,7 +73,8 @@ def evaluate(gold_rows: list[dict], preds: dict[int, dict]):
             tier[name, "gold"] += len(ks)
             tier[name, "tp"] += sum(k in pred for k in ks)
             tier[name, "leaked"] += sum(k in leaks for k in ks)
-        rows_out.append({"trace_id": p.get("trace_id"), "leaked": len(leaks), "n_gold": len(gold)})
+        rows_out.append({"trace_id": p.get("trace_id"), "leaked": len(leaks), "n_gold": len(gold),
+                         "source": g.get("source", "hf")})
     return leak_msgs, per_label, tier, rows_out
 
 
@@ -90,7 +91,7 @@ def pct(a, b):
 
 
 def report(system: str, split: str, gold_rows, preds: dict) -> str:
-    leak_msgs, per_label, tier, _ = evaluate(gold_rows, preds)
+    leak_msgs, per_label, tier, rows_out = evaluate(gold_rows, preds)
     n, k = len(leak_msgs), sum(leak_msgs)
     pl = [p for p in preds.values()]
     lat = sorted(p["latency_s"] for p in pl)
@@ -103,7 +104,11 @@ def report(system: str, split: str, gold_rows, preds: dict) -> str:
              f" (leaked values: {tier['high', 'leaked']}/{tier['high', 'gold']})",
              f"- Latency: median {statistics.median(lat):.2f}s, p95 {lat[int(0.95 * (len(lat) - 1))]:.2f}s",
              f"- Cost per 1k messages: {cost_per_1k(pl)}",
-             f"- Failed calls: {errs}", "",
+             f"- Failed calls: {errs}",
+             "- Leak rate by source: " + ", ".join(
+                 f"{src} {pct(sum(r['leaked'] > 0 for r in rs), len(rs))} (n={len(rs)})"
+                 for src in sorted({r["source"] for r in rows_out})
+                 for rs in [[r for r in rows_out if r["source"] == src]]), "",
              "| Label | Gold | Pred | Recall | Precision |", "|---|---|---|---|---|"]
     for lab in LABELS:
         g, p_, tp = per_label[lab, "gold"], per_label[lab, "pred"], per_label[lab, "tp"]

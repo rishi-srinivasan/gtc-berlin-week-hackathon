@@ -7,6 +7,8 @@ from pathlib import Path
 
 from faker import Faker
 
+from . import synth
+
 SPLITS = {"test": 300, "seed": 100, "pool": 2000}
 IBAN_RATE = 0.15
 PHRASINGS = [
@@ -41,8 +43,8 @@ def inject_iban(row: dict, fake: Faker, rng: random.Random) -> dict:
 def to_example(row: dict) -> dict:
     ents = list({(m["label"], m["value"]): {"text": m["value"], "label": m["label"]}
                  for m in row["privacy_mask"]}.values())
-    return {"uid": row["uid"], "locale": row["locale"], "text": row["source_text"],
-            "entities": ents, "privacy_mask": row["privacy_mask"]}
+    return {"uid": row["uid"], "locale": row["locale"], "source": row.get("source", "hf"),
+            "text": row["source_text"], "entities": ents, "privacy_mask": row["privacy_mask"]}
 
 
 def load_german(locale: str | None, max_rows: int):
@@ -58,25 +60,27 @@ def load_german(locale: str | None, max_rows: int):
             return
 
 
-def build(rows, seed: int = 0):
-    """Dedupe, inject IBANs, split. Pure function: easy to test."""
+def dedupe(rows):
+    seen = set()
+    return [r for r in rows if not (r["source_text"] in seen or seen.add(r["source_text"]))]
+
+
+def build(rows, synth=(), share: float = 0.0, seed: int = 0):
+    """Dedupe, inject IBANs into HF rows, mix in `share` synthetic rows per split, split. Pure: easy to test."""
     rng, fake = random.Random(seed), Faker("de_DE")
     Faker.seed(seed)
-    seen, uniq = set(), []
-    for r in rows:
-        if r["source_text"] in seen:
-            continue
-        seen.add(r["source_text"])
-        uniq.append(r)
-    rng.shuffle(uniq)
-    need = sum(SPLITS.values())
-    if len(uniq) < need:
-        raise SystemExit(f"only {len(uniq)} unique rows, need {need}; raise --max-rows")
-    uniq = [inject_iban(r, fake, rng) if rng.random() < IBAN_RATE else r for r in uniq[:need]]
-    out, i = {}, 0
+    hf, syn = dedupe(rows), dedupe(synth)
+    rng.shuffle(hf)
+    rng.shuffle(syn)
+    out = {}
     for name, n in SPLITS.items():
-        out[name] = [to_example(r) for r in uniq[i:i + n]]
-        i += n
+        k = round(share * n)
+        if len(hf) < n - k or len(syn) < k:
+            raise SystemExit(f"not enough rows for {name}: need {n - k} HF + {k} synthetic; raise --max-rows")
+        part = [inject_iban(r, fake, rng) if rng.random() < IBAN_RATE else r for r in hf[:n - k]] + syn[:k]
+        hf, syn = hf[n - k:], syn[k:]
+        rng.shuffle(part)
+        out[name] = [to_example(r) for r in part]
     return out
 
 
@@ -84,15 +88,19 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--locale", choices=["DE", "CH"], help="DE drops the Swiss rows")
     ap.add_argument("--max-rows", type=int, default=12000)
+    ap.add_argument("--synthetic-share", type=float, default=0.4,
+                    help="fraction of every split made of synthetic broker-style messages (0 disables)")
     ap.add_argument("--out", default="data")
     a = ap.parse_args()
-    splits = build(load_german(a.locale, a.max_rows))
+    need = round(sum(SPLITS.values()) * a.synthetic_share) + 200  # spare for dedupe
+    splits = build(load_german(a.locale, a.max_rows), synth.generate(need), a.synthetic_share)
     out = Path(a.out)
     out.mkdir(exist_ok=True)
     for name, rows in splits.items():
         (out / f"{name}.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows))
         c = Counter(e["label"] for r in rows for e in r["entities"])
-        print(f"{name}: {len(rows)} rows\n  " + ", ".join(f"{k}={v}" for k, v in sorted(c.items())))
+        n_syn = sum(r["source"] == "synthetic" for r in rows)
+        print(f"{name}: {len(rows)} rows ({n_syn} synthetic)\n  " + ", ".join(f"{k}={v}" for k, v in sorted(c.items())))
 
 
 if __name__ == "__main__":

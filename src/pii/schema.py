@@ -6,15 +6,17 @@ DATASET_LABELS = [
     "SOCIALNUM", "STREET", "SURNAME", "TAXNUM", "TELEPHONENUM", "USERNAME",
     "ZIPCODE",
 ]
-LABELS = DATASET_LABELS + ["IBAN"]  # the dataset has no IBAN class; data.py injects it
+# Not in the dataset: IBAN is injected by data.py; the rest come from synth.py (broker-style messages).
+EXTRA_LABELS = ["IBAN", "PORTFOLIOID", "IPADDRESS", "AGE", "SALARY"]
+LABELS = DATASET_LABELS + EXTRA_LABELS
 
-CRITICAL = {"IBAN", "ACCOUNTNUM", "CREDITCARDNUMBER", "IDCARDNUM", "TAXNUM",
+CRITICAL = {"IBAN", "PORTFOLIOID", "ACCOUNTNUM", "CREDITCARDNUMBER", "IDCARDNUM", "TAXNUM",
             "SOCIALNUM", "PASSWORD", "DRIVERLICENSENUM"}
-HIGH = {"GIVENNAME", "SURNAME", "USERNAME", "EMAIL", "TELEPHONENUM", "STREET"}
+HIGH = {"GIVENNAME", "SURNAME", "USERNAME", "EMAIL", "TELEPHONENUM", "STREET", "IPADDRESS", "SALARY"}
 
 # Classes compared by digits only when checking for leaks.
 NUMERIC = {"TELEPHONENUM", "IBAN", "CREDITCARDNUMBER", "ACCOUNTNUM", "IDCARDNUM",
-           "TAXNUM", "SOCIALNUM", "DRIVERLICENSENUM"}
+           "TAXNUM", "SOCIALNUM", "DRIVERLICENSENUM", "PORTFOLIOID"}
 
 OUTPUT_SCHEMA = {
     "type": "object",
@@ -45,6 +47,9 @@ Rules:
 - German formats: phone numbers (+49 ..., 0171 ...), IBAN (DE.. with or without spaces),
   tax ID (TAXNUM), social insurance number (SOCIALNUM), street names WITHOUT the house number
   (house number = BUILDINGNUM), postcode = ZIPCODE, dates of birth = DATEOFBIRTH.
+- Broker/bank texts: depot or portfolio numbers = PORTFOLIOID; IPv4/IPv6 addresses = IPADDRESS;
+  age = AGE (only the number, e.g. "42" in "42 Jahre alt"); salary or income = SALARY (the amount with its currency).
+- ISIN, WKN, ticker symbols and product names are NOT personal data: never list them.
 - Do not label generic words, company names, countries or dates that are not a birth date.
 - If there is no PII return {{"entities": []}}.
 

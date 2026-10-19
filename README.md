@@ -14,7 +14,7 @@ Setup: `uv sync`, copy `.env.example` to `.env` (the repo-root `.env` is picked 
 | Stage | Command | Notes |
 |---|---|---|
 | Tests | `make test` | masking, IBAN, splits, eval, distil rows |
-| Data | `make data` | German DE-locale rows -> `data/{test,seed,pool}.jsonl` (gitignored), IBANs injected |
+| Data | `make data` | German DE-locale rows (60%) + synthetic broker-style messages (40%, `--synthetic-share`; adds PORTFOLIOID, IPADDRESS, AGE, SALARY)  -> `data/{test,seed,pool}.jsonl` (gitignored), IBANs injected |
 | Baseline | `make baseline N=20` | teacher traced in Langfuse -> `results/preds_teacher_test.jsonl`; `SPLIT=pool` for training traces. More than 50 calls needs `--yes` |
 | Eval | `make eval SYSTEM=teacher` | leak rate, per-class P/R, tiers, latency, cost; scores pushed to Langfuse; `results/eval_*.md` |
 | Review test set | `uv run python scripts/review_testset.py export` / `import` | fix labels by hand -> `data/test_clean.jsonl` (eval and distil-prep use it automatically) |
