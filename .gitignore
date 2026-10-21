@@ -172,7 +172,8 @@ cython_debug/
 .claude
 .idea
 distil/
-results/
+results/*
+!results/DEMO_REPORT_FINAL.md
 # personal local testing (Ollama, GLiNER); not shared
 local/
 model/
