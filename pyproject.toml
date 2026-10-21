@@ -1,7 +1,7 @@
 [project]
 name = "gtc-berlin-week-hackathon"
 version = "0.1.0"
-description = "German PII redaction gateway for the distil labs x Langfuse x Runpod hackathon"
+description = "German PII redaction gateway: a distilled small model masks PII before text reaches a frontier LLM"
 requires-python = ">=3.11"
 dependencies = [
   "langfuse>=5.0.2",

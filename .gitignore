@@ -177,3 +177,9 @@ results/
 local/
 model/
 skills-lock.json
+
+# secrets: only .env.example is tracked
+.env.*
+!.env.example
+*-key.json
+pii-key.json

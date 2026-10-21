@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .gateway import run
 
-REPORT = Path(__file__).parents[2] / "results" / "DEMO_REPORT_FINAL.md"
+REPORT = Path(__file__).parents[2] / "docs" / "RESULTS.md"
 
 
 def _inline(t):

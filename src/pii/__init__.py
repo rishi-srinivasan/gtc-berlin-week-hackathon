@@ -1,4 +1,4 @@
-"""German PII redaction for the hackathon loop. Settings come from .env (+ ENV_FILE overrides, e.g. local/.env)."""
+"""German PII redaction gateway. Settings come from .env (+ ENV_FILE overrides, e.g. local/.env)."""
 import os
 
 from dotenv import find_dotenv, load_dotenv
